@@ -1,7 +1,203 @@
 <!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><title>SMART-RDS User Portal</title></head>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SMART-RDS User Portal</title>
+
+  <!-- Firebase compat SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,sans-serif}
+    body{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;padding:20px}
+    .container{max-width:900px;margin:0 auto;background:white;border-radius:20px;padding:25px;box-shadow:0 20px 40px rgba(0,0,0,0.1)}
+    h1{text-align:center;color:#1a1a1a;margin-bottom:15px;font-size:2em}
+    p.sub{ text-align:center;color:#555;margin-bottom:25px;font-size:0.9rem}
+    .section{margin-bottom:30px;padding:20px;border-radius:15px;background:#f8f9ff;box-shadow:0 5px 15px rgba(0,0,0,0.05)}
+    .section h2{margin-bottom:15px;color:#333;font-size:1.3em}
+    label{display:block;margin-bottom:6px;color:#444;font-weight:600}
+    input[type=text],select{width:100%;padding:10px 12px;border:2px solid #ddd;border-radius:8px;font-size:15px}
+    input:focus,select:focus{outline:none;border-color:#667eea;box-shadow:0 0 0 3px rgba(102,126,234,0.15)}
+    .row{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin-bottom:10px}
+    .btn{width:100%;padding:13px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:10px;font-size:15px;font-weight:bold;cursor:pointer;transition:all 0.3s;margin-top:10px}
+    .btn:hover{transform:translateY(-2px);box-shadow:0 10px 20px rgba(102,126,234,0.3)}
+    .status{margin-top:10px;font-size:0.9rem}
+    .status.ok{color:#155724}
+    .status.err{color:#721c24}
+    table{width:100%;border-collapse:collapse;margin-top:10px;font-size:0.9rem}
+    th,td{padding:8px 10px;border-bottom:1px solid #eee;text-align:left}
+    th{background:#667eea;color:white}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:0.75rem;margin-left:6px}
+    .pill.ok{background:#d4edda;color:#155724}
+    .pill.no{background:#f8d7da;color:#721c24}
+    .muted{color:#777;font-size:0.85rem}
+    @media(max-width:700px){
+      .row{grid-template-columns:1fr}
+    }
+  </style>
+</head>
 <body>
-  <h1>SMART-RDS User Portal Test</h1>
+  <div class="container">
+    <h1>SMART-RDS User Portal</h1>
+    <p class="sub">Check your ration history and refill status using your e‑Ration Card ID.</p>
+
+    <!-- Search section -->
+    <div class="section">
+      <h2>🔍 Check Ration Status</h2>
+      <div class="row">
+        <div>
+          <label>Ration Card ID (eg. TN-09-1234567890)</label>
+          <input type="text" id="rationId" placeholder="TN-09-1234567890" />
+        </div>
+        <div>
+          <label>Shop ID</label>
+          <select id="shopIdSel">
+            <option value="TN001">TN001</option>
+          </select>
+        </div>
+        <div>
+          <label>Card Type</label>
+          <select id="cardTypeSel">
+            <option value="AAY">AAY</option>
+            <option value="NPHH">NPHH</option>
+            <option value="PHH">PHH</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn" onclick="checkStatus()">📄 Show Last 5 Bills & Refill Status</button>
+      <div id="searchStatus" class="status"></div>
+    </div>
+
+    <!-- Refill status -->
+    <div class="section">
+      <h2>✅ Refill Status (This Month)</h2>
+      <div id="statusTable" class="muted">Enter your ration card details above and click the button.</div>
+    </div>
+
+    <!-- Last 5 bills -->
+    <div class="section">
+      <h2>📜 Last 5 Bills</h2>
+      <div id="billsTable" class="muted">No bills to show yet.</div>
+    </div>
+  </div>
+
+  <script>
+    // Same Firebase project as government portal
+    const firebaseConfig = {
+      apiKey: "AIzaSyCf5yQAkQGICClkV1p39p8dqNIiZQoKeKc",
+      authDomain: "smart-rds.firebaseapp.com",
+      databaseURL: "https://smart-rds-default-rtdb.firebaseio.com",
+      projectId: "smart-rds",
+      storageBucket: "smart-rds.firebasestorage.app",
+      messagingSenderId: "1059807897058",
+      appId: "1:1059807897058:web:46fa1720cb7ca87658c5bb",
+      measurementId: "G-BFE86XW3DF"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const ITEMS = ['rice','sugar','wheat','dhal','kerosene'];
+    const UNIT = {rice:'kg',sugar:'kg',wheat:'kg',dhal:'kg',kerosene:'litres'};
+
+    async function checkStatus(){
+      const id = document.getElementById('rationId').value.trim();
+      const shopId = document.getElementById('shopIdSel').value;
+      const cardType = document.getElementById('cardTypeSel').value;
+      const st = document.getElementById('searchStatus');
+
+      if(!/^TN-\d{2}-\d{10}$/.test(id)){
+        st.textContent = "⚠ Please enter ID in format TN-09-1234567890.";
+        st.className = "status err";
+        return;
+      }
+      st.textContent = "Loading data…";
+      st.className = "status";
+
+      try{
+        // 1) Get allocations for this card type
+        const allocSnap = await db.ref(`shops/${shopId}/allocations/${cardType}`).once('value');
+        const alloc = allocSnap.exists() ? allocSnap.val() : {};
+
+        // 2) Get bills for this ration ID (limit 5 latest)
+        const billsSnap = await db.ref(`shops/${shopId}/bills/${id}`).orderByChild('date').limitToLast(5).once('value');
+        const billsArr = [];
+        if(billsSnap.exists()){
+          billsSnap.forEach(ch => billsArr.push(ch.val()));
+          billsArr.sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+        }
+
+        renderBills(billsArr);
+        renderStatus(alloc, billsArr);
+        if(billsArr.length===0){
+          st.textContent = "No bills found for this ID in shop "+shopId+".";
+          st.className = "status err";
+        }else{
+          st.textContent = "Data loaded from "+shopId+".";
+          st.className = "status ok";
+        }
+      }catch(e){
+        console.error(e);
+        st.textContent = "Error loading data. Check internet.";
+        st.className = "status err";
+      }
+    }
+
+    function renderBills(bills){
+      const box = document.getElementById('billsTable');
+      if(!bills || bills.length===0){
+        box.innerHTML = '<p class="muted">No bills to show.</p>';
+        return;
+      }
+      let html = '<table><tr><th>Date</th><th>Items & Qty</th></tr>';
+      bills.forEach(b=>{
+        let itemsText = '';
+        ITEMS.forEach(it=>{
+          if(b[it] && b[it]>0){
+            itemsText += `${it.toUpperCase()}: ${b[it]} ${UNIT[it]}, `;
+          }
+        });
+        if(itemsText.endsWith(', ')) itemsText = itemsText.slice(0,-2);
+        html += `<tr><td>${b.date||'-'}</td><td>${itemsText||'-'}</td></tr>`;
+      });
+      html += '</table>';
+      box.innerHTML = html;
+    }
+
+    function renderStatus(alloc, bills){
+      const box = document.getElementById('statusTable');
+      if(!alloc || Object.keys(alloc).length===0){
+        box.innerHTML = '<p class="muted">No allocation set for this card type in this shop.</p>';
+        return;
+      }
+      // Sum used this month from bills
+      const used = {rice:0,sugar:0,wheat:0,dhal:0,kerosene:0};
+      bills.forEach(b=>{
+        ITEMS.forEach(it=>{
+          if(b[it]) used[it]+= Number(b[it]);
+        });
+      });
+
+      let html = '<table><tr><th>Item</th><th>Allocated</th><th>Used</th><th>Remaining</th><th>Status</th></tr>';
+      ITEMS.forEach(it=>{
+        const allocQty = Number(alloc[it]||0);
+        const usedQty = used[it]||0;
+        const rem = allocQty - usedQty;
+        const unit = UNIT[it];
+        const ok = rem>0.0001; // more than 0 remaining
+        html += `<tr>
+          <td>${it.toUpperCase()}</td>
+          <td>${allocQty} ${unit}</td>
+          <td>${usedQty} ${unit}</td>
+          <td>${rem<0?0:rem} ${unit}</td>
+          <td>${ok ? `<span class="pill ok">Not fully taken</span>` :
+                     `<span class="pill no">Fully taken</span>`}</td>
+        </tr>`;
+      });
+      html += '</table>';
+      box.innerHTML = html;
+    }
+  </script>
 </body>
 </html>
