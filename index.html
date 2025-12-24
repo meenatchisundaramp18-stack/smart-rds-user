@@ -41,7 +41,7 @@
 <body>
   <div class="container">
     <h1>SMART-RDS User Portal</h1>
-    <p class="sub">Check your ration history and refill status using your e‑Ration Card ID.</p>
+    <p class="sub">Check your ration history and see if government has refilled stock in your shop.</p>
 
     <!-- Search section -->
     <div class="section">
@@ -66,19 +66,21 @@
           </select>
         </div>
       </div>
-      <button class="btn" onclick="checkStatus()">📄 Show Last 5 Bills & Refill Status</button>
+      <button class="btn" onclick="checkStatus()">📄 Show Shop Refill & Last 5 Bills</button>
       <div id="searchStatus" class="status"></div>
     </div>
 
-    <!-- Refill status -->
+    <!-- Refill status (shop-level) -->
     <div class="section">
-      <h2>✅ Refill Status (This Month)</h2>
-      <div id="statusTable" class="muted">Enter your ration card details above and click the button.</div>
+      <h2>✅ Shop Refill Status (Govt → Shop)</h2>
+      <div id="statusTable" class="muted">
+        Enter your details above and click the button. This shows how much stock government has refilled to your shop and what remains (all cards combined).
+      </div>
     </div>
 
     <!-- Last 5 bills -->
     <div class="section">
-      <h2>📜 Last 5 Bills</h2>
+      <h2>📜 Last 5 Bills (Your Card)</h2>
       <div id="billsTable" class="muted">No bills to show yet.</div>
     </div>
   </div>
@@ -104,7 +106,6 @@
     async function checkStatus(){
       const id = document.getElementById('rationId').value.trim();
       const shopId = document.getElementById('shopIdSel').value;
-      const cardType = document.getElementById('cardTypeSel').value;
       const st = document.getElementById('searchStatus');
 
       if(!/^TN-\d{2}-\d{10}$/.test(id)){
@@ -116,12 +117,18 @@
       st.className = "status";
 
       try{
-        // 1) Get allocations for this card type
-        const allocSnap = await db.ref(`shops/${shopId}/allocations/${cardType}`).once('value');
-        const alloc = allocSnap.exists() ? allocSnap.val() : {};
+        // 1) Shop-level stock: totals + sold
+        const [totalSnap, soldSnap] = await Promise.all([
+          db.ref(`shops/${shopId}/stockTotals`).once('value'),
+          db.ref(`shops/${shopId}/stock`).once('value')
+        ]);
 
-        // 2) Get bills for this ration ID (limit 5 latest)
-        const billsSnap = await db.ref(`shops/${shopId}/bills/${id}`).orderByChild('date').limitToLast(5).once('value');
+        const totals = totalSnap.exists() ? totalSnap.val() : {};
+        const stock  = soldSnap.exists()  ? soldSnap.val()  : {};
+
+        // 2) Last 5 bills only for this ration card
+        const billsSnap = await db.ref(`shops/${shopId}/bills/${id}`)
+          .orderByChild('date').limitToLast(5).once('value');
         const billsArr = [];
         if(billsSnap.exists()){
           billsSnap.forEach(ch => billsArr.push(ch.val()));
@@ -129,12 +136,13 @@
         }
 
         renderBills(billsArr);
-        renderStatus(alloc, billsArr);
-        if(billsArr.length===0){
-          st.textContent = "No bills found for this ID in shop "+shopId+".";
+        renderShopStatus(totals, stock);
+
+        if(!totalSnap.exists()){
+          st.textContent = "No government stock recorded yet for this shop.";
           st.className = "status err";
         }else{
-          st.textContent = "Data loaded from "+shopId+".";
+          st.textContent = "Data loaded from shop " + shopId + ".";
           st.className = "status ok";
         }
       }catch(e){
@@ -144,6 +152,7 @@
       }
     }
 
+    // Last 5 bills: same as before (per card)
     function renderBills(bills){
       const box = document.getElementById('billsTable');
       if(!bills || bills.length===0){
@@ -165,36 +174,43 @@
       box.innerHTML = html;
     }
 
-    function renderStatus(alloc, bills){
+    // NEW: shop-level refill status (govt → shop)
+    function renderShopStatus(totals, stock){
       const box = document.getElementById('statusTable');
-      if(!alloc || Object.keys(alloc).length===0){
-        box.innerHTML = '<p class="muted">No allocation set for this card type in this shop.</p>';
+      if(!totals || Object.keys(totals).length===0){
+        box.innerHTML = '<p class="muted">Government has not set stock totals for this shop yet.</p>';
         return;
       }
-      // Sum used this month from bills
-      const used = {rice:0,sugar:0,wheat:0,dhal:0,kerosene:0};
-      bills.forEach(b=>{
-        ITEMS.forEach(it=>{
-          if(b[it]) used[it]+= Number(b[it]);
-        });
-      });
 
-      let html = '<table><tr><th>Item</th><th>Allocated</th><th>Used</th><th>Remaining</th><th>Status</th></tr>';
+      let html = '<table><tr><th>Item</th><th>Total Govt Stock</th><th>Issued (All Cards)</th><th>Remaining in Shop</th><th>Refill Status</th></tr>';
+
       ITEMS.forEach(it=>{
-        const allocQty = Number(alloc[it]||0);
-        const usedQty = used[it]||0;
-        const rem = allocQty - usedQty;
-        const unit = UNIT[it];
-        const ok = rem>0.0001; // more than 0 remaining
+        const total = Number(totals[it] || 0);
+        const sold  = stock[it] && stock[it].sold ? Number(stock[it].sold) : 0;
+        const rem   = total - sold;
+        const unit  = UNIT[it];
+
+        let statusHtml;
+        if (total === 0) {
+          statusHtml = '<span class="pill no">No stock allocated</span>';
+        } else if (rem > total * 0.2) {
+          // more than 20% remaining → recently refilled / healthy
+          statusHtml = '<span class="pill ok">Refilled / Available</span>';
+        } else if (rem > 0) {
+          statusHtml = '<span class="pill no">Low stock</span>';
+        } else {
+          statusHtml = '<span class="pill no">Empty</span>';
+        }
+
         html += `<tr>
           <td>${it.toUpperCase()}</td>
-          <td>${allocQty} ${unit}</td>
-          <td>${usedQty} ${unit}</td>
-          <td>${rem<0?0:rem} ${unit}</td>
-          <td>${ok ? `<span class="pill ok">Not fully taken</span>` :
-                     `<span class="pill no">Fully taken</span>`}</td>
+          <td>${total} ${unit}</td>
+          <td>${sold} ${unit}</td>
+          <td>${rem < 0 ? 0 : rem} ${unit}</td>
+          <td>${statusHtml}</td>
         </tr>`;
       });
+
       html += '</table>';
       box.innerHTML = html;
     }
