@@ -1,219 +1,158 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SMART-RDS User Portal</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SMART-RDS User Portal</title>
 
-  <!-- Firebase compat SDK -->
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
 
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,sans-serif}
-    body{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;padding:20px}
-    .container{max-width:900px;margin:0 auto;background:white;border-radius:20px;padding:25px;box-shadow:0 20px 40px rgba(0,0,0,0.1)}
-    h1{text-align:center;color:#1a1a1a;margin-bottom:15px;font-size:2em}
-    p.sub{ text-align:center;color:#555;margin-bottom:25px;font-size:0.9rem}
-    .section{margin-bottom:30px;padding:20px;border-radius:15px;background:#f8f9ff;box-shadow:0 5px 15px rgba(0,0,0,0.05)}
-    .section h2{margin-bottom:15px;color:#333;font-size:1.3em}
-    label{display:block;margin-bottom:6px;color:#444;font-weight:600}
-    input[type=text],select{width:100%;padding:10px 12px;border:2px solid #ddd;border-radius:8px;font-size:15px}
-    input:focus,select:focus{outline:none;border-color:#667eea;box-shadow:0 0 0 3px rgba(102,126,234,0.15)}
-    .row{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin-bottom:10px}
-    .btn{width:100%;padding:13px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:10px;font-size:15px;font-weight:bold;cursor:pointer;transition:all 0.3s;margin-top:10px}
-    .btn:hover{transform:translateY(-2px);box-shadow:0 10px 20px rgba(102,126,234,0.3)}
-    .status{margin-top:10px;font-size:0.9rem}
-    .status.ok{color:#155724}
-    .status.err{color:#721c24}
-    table{width:100%;border-collapse:collapse;margin-top:10px;font-size:0.9rem}
-    th,td{padding:8px 10px;border-bottom:1px solid #eee;text-align:left}
-    th{background:#667eea;color:white}
-    .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:0.75rem;margin-left:6px}
-    .pill.ok{background:#d4edda;color:#155724}
-    .pill.no{background:#f8d7da;color:#721c24}
-    .muted{color:#777;font-size:0.85rem}
-    @media(max-width:700px){
-      .row{grid-template-columns:1fr}
-    }
-  </style>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,sans-serif}
+body{background:linear-gradient(135deg,#667eea,#764ba2);min-height:100vh;padding:20px}
+.container{max-width:900px;margin:auto;background:white;border-radius:20px;padding:25px;box-shadow:0 20px 40px rgba(0,0,0,.15)}
+h1{text-align:center;margin-bottom:10px}
+.sub{text-align:center;color:#555;margin-bottom:25px}
+.section{margin-bottom:30px;background:#f8f9ff;padding:20px;border-radius:15px}
+.row{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px}
+label{font-weight:600;margin-bottom:6px;display:block}
+input,select{padding:10px;border-radius:8px;border:2px solid #ddd;width:100%}
+.btn{margin-top:15px;padding:12px;border:none;border-radius:10px;background:#667eea;color:white;font-weight:bold;cursor:pointer}
+.status{margin-top:10px;font-size:.9rem}
+.status.ok{color:#155724}
+.status.err{color:#721c24}
+table{width:100%;border-collapse:collapse;margin-top:10px}
+th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}
+th{background:#667eea;color:white}
+.muted{color:#777;font-size:.9rem}
+@media(max-width:700px){.row{grid-template-columns:1fr}}
+</style>
 </head>
+
 <body>
-  <div class="container">
-    <h1>SMART-RDS User Portal</h1>
-    <p class="sub">Check your ration history and see if government has refilled stock in your shop.</p>
+<div class="container">
+  <h1>SMART-RDS User Portal</h1>
+  <p class="sub">Check your ration history and shop refill status</p>
 
-    <!-- Search section -->
-    <div class="section">
-      <h2>🔍 Check Ration Status</h2>
-      <div class="row">
-        <div>
-          <label>Ration Card ID (eg. TN-09-1234567890)</label>
-          <input type="text" id="rationId" placeholder="TN-09-1234567890" />
-        </div>
-        <div>
-          <label>Shop ID</label>
-          <select id="shopIdSel">
-            <option value="TN001">TN001</option>
-          </select>
-        </div>
-        <div>
-          <label>Card Type</label>
-          <select id="cardTypeSel">
-            <option value="AAY">AAY</option>
-            <option value="NPHH">NPHH</option>
-            <option value="PHH">PHH</option>
-          </select>
-        </div>
+  <!-- Search -->
+  <div class="section">
+    <h2>🔍 Check Ration Status</h2>
+    <div class="row">
+      <div>
+        <label>Ration Card ID</label>
+        <input id="rationId" placeholder="TN-09-1234567890">
       </div>
-      <button class="btn" onclick="checkStatus()">📄 Show Shop Refill & Last 5 Bills</button>
-      <div id="searchStatus" class="status"></div>
-    </div>
-
-    <!-- Refill status (shop-level) -->
-    <div class="section">
-      <h2>✅ Shop Refill Status (Govt → Shop)</h2>
-      <div id="statusTable" class="muted">
-        Enter your details above and click the button. This shows how much stock government has refilled to your shop and what remains (all cards combined).
+      <div>
+        <label>Shop ID</label>
+        <select id="shopId">
+          <option>TN001</option>
+        </select>
+      </div>
+      <div>
+        <label>Card Type</label>
+        <select>
+          <option>AAY</option>
+          <option>PHH</option>
+          <option>NPHH</option>
+        </select>
       </div>
     </div>
-
-    <!-- Last 5 bills -->
-    <div class="section">
-      <h2>📜 Last 5 Bills (Your Card)</h2>
-      <div id="billsTable" class="muted">No bills to show yet.</div>
-    </div>
+    <button class="btn" onclick="checkStatus()">📄 Show Shop Refill & Bills</button>
+    <div id="searchStatus" class="status"></div>
   </div>
 
-  <script>
-    // Same Firebase project as government portal
-    const firebaseConfig = {
-      apiKey: "AIzaSyCf5yQAkQGICClkV1p39p8dqNIiZQoKeKc",
-      authDomain: "smart-rds.firebaseapp.com",
-      databaseURL: "https://smart-rds-default-rtdb.firebaseio.com",
-      projectId: "smart-rds",
-      storageBucket: "smart-rds.firebasestorage.app",
-      messagingSenderId: "1059807897058",
-      appId: "1:1059807897058:web:46fa1720cb7ca87658c5bb",
-      measurementId: "G-BFE86XW3DF"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+  <!-- Shop Status -->
+  <div class="section">
+    <h2>✅ Shop Refill Status (Govt → Shop)</h2>
+    <div id="shopStatus" class="muted">No data loaded.</div>
+  </div>
 
-    const ITEMS = ['rice','sugar','wheat','dhal','kerosene'];
-    const UNIT = {rice:'kg',sugar:'kg',wheat:'kg',dhal:'kg',kerosene:'litres'};
+  <!-- Bills -->
+  <div class="section">
+    <h2>📜 Last 5 Bills (Your Card)</h2>
+    <div id="billsBox" class="muted">No bills to show.</div>
+  </div>
+</div>
 
-    async function checkStatus(){
-      const id = document.getElementById('rationId').value.trim();
-      const shopId = document.getElementById('shopIdSel').value;
-      const st = document.getElementById('searchStatus');
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyCf5yQAkQGICClkV1p39p8dqNIiZQoKeKc",
+  databaseURL: "https://smart-rds-default-rtdb.firebaseio.com"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-      if(!/^TN-\d{2}-\d{10}$/.test(id)){
-        st.textContent = "⚠ Please enter ID in format TN-09-1234567890.";
-        st.className = "status err";
-        return;
-      }
-      st.textContent = "Loading data…";
-      st.className = "status";
+async function checkStatus(){
+  const cardId = document.getElementById("rationId").value.trim();
+  const shopId = document.getElementById("shopId").value;
+  const st = document.getElementById("searchStatus");
 
-      try{
-        // 1) Shop-level stock: totals + sold
-        const [totalSnap, soldSnap] = await Promise.all([
-          db.ref(`shops/${shopId}/stockTotals`).once('value'),
-          db.ref(`shops/${shopId}/stock`).once('value')
-        ]);
+  if(!/^TN-\d{2}-\d{10}$/.test(cardId)){
+    st.textContent = "Invalid Card ID format";
+    st.className = "status err";
+    return;
+  }
 
-        const totals = totalSnap.exists() ? totalSnap.val() : {};
-        const stock  = soldSnap.exists()  ? soldSnap.val()  : {};
+  st.textContent = "Loading…";
+  st.className = "status";
 
-        // 2) Last 5 bills only for this ration card
-        const billsSnap = await db.ref(`shops/${shopId}/bills/${id}`)
-          .orderByChild('date').limitToLast(5).once('value');
-        const billsArr = [];
-        if(billsSnap.exists()){
-          billsSnap.forEach(ch => billsArr.push(ch.val()));
-          billsArr.sort((a,b)=> (b.date||'').localeCompare(a.date||''));
-        }
+  try{
+    // ---------- SHOP STATUS ----------
+    const totalsSnap = await db.ref(`shops/${shopId}/stockTotals`).once("value");
+    renderShopStatus(totalsSnap.val());
 
-        renderBills(billsArr);
-        renderShopStatus(totals, stock);
+    // ---------- USER BILLS (FIXED PATH) ----------
+    const billsSnap = await db.ref(`shops/${shopId}/users/${cardId}/bills`)
+      .limitToLast(5).once("value");
 
-        if(!totalSnap.exists()){
-          st.textContent = "No government stock recorded yet for this shop.";
-          st.className = "status err";
-        }else{
-          st.textContent = "Data loaded from shop " + shopId + ".";
-          st.className = "status ok";
-        }
-      }catch(e){
-        console.error(e);
-        st.textContent = "Error loading data. Check internet.";
-        st.className = "status err";
-      }
+    const bills = [];
+    if(billsSnap.exists()){
+      billsSnap.forEach(ch => bills.push(ch.val()));
+      bills.reverse();
     }
+    renderBills(bills);
 
-    // Last 5 bills: same as before (per card)
-    function renderBills(bills){
-      const box = document.getElementById('billsTable');
-      if(!bills || bills.length===0){
-        box.innerHTML = '<p class="muted">No bills to show.</p>';
-        return;
-      }
-      let html = '<table><tr><th>Date</th><th>Items & Qty</th></tr>';
-      bills.forEach(b=>{
-        let itemsText = '';
-        ITEMS.forEach(it=>{
-          if(b[it] && b[it]>0){
-            itemsText += `${it.toUpperCase()}: ${b[it]} ${UNIT[it]}, `;
-          }
-        });
-        if(itemsText.endsWith(', ')) itemsText = itemsText.slice(0,-2);
-        html += `<tr><td>${b.date||'-'}</td><td>${itemsText||'-'}</td></tr>`;
-      });
-      html += '</table>';
-      box.innerHTML = html;
-    }
+    st.textContent = "Data loaded from shop " + shopId;
+    st.className = "status ok";
 
-    // NEW: shop-level refill status (govt → shop)
-    function renderShopStatus(totals, stock){
-      const box = document.getElementById('statusTable');
-      if(!totals || Object.keys(totals).length===0){
-        box.innerHTML = '<p class="muted">Government has not set stock totals for this shop yet.</p>';
-        return;
-      }
+  }catch(e){
+    console.error(e);
+    st.textContent = "Error loading data";
+    st.className = "status err";
+  }
+}
 
-      let html = '<table><tr><th>Item</th><th>Total Govt Stock</th><th>Issued (All Cards)</th><th>Remaining in Shop</th><th>Refill Status</th></tr>';
+function renderBills(bills){
+  const box = document.getElementById("billsBox");
+  if(!bills || bills.length===0){
+    box.innerHTML = "<p class='muted'>No bills found.</p>";
+    return;
+  }
+  let html = "<table><tr><th>Date</th><th>Items</th></tr>";
+  bills.forEach(b=>{
+    html += `<tr>
+      <td>${b.date || '-'}</td>
+      <td>${b.items || '-'}</td>
+    </tr>`;
+  });
+  html += "</table>";
+  box.innerHTML = html;
+}
 
-      ITEMS.forEach(it=>{
-        const total = Number(totals[it] || 0);
-        const sold  = stock[it] && stock[it].sold ? Number(stock[it].sold) : 0;
-        const rem   = total - sold;
-        const unit  = UNIT[it];
-
-        let statusHtml;
-        if (total === 0) {
-          statusHtml = '<span class="pill no">No stock allocated</span>';
-        } else if (rem > total * 0.2) {
-          // more than 20% remaining → recently refilled / healthy
-          statusHtml = '<span class="pill ok">Refilled / Available</span>';
-        } else if (rem > 0) {
-          statusHtml = '<span class="pill no">Low stock</span>';
-        } else {
-          statusHtml = '<span class="pill no">Empty</span>';
-        }
-
-        html += `<tr>
-          <td>${it.toUpperCase()}</td>
-          <td>${total} ${unit}</td>
-          <td>${sold} ${unit}</td>
-          <td>${rem < 0 ? 0 : rem} ${unit}</td>
-          <td>${statusHtml}</td>
-        </tr>`;
-      });
-
-      html += '</table>';
-      box.innerHTML = html;
-    }
-  </script>
+function renderShopStatus(totals){
+  const box = document.getElementById("shopStatus");
+  if(!totals){
+    box.innerHTML = "<p class='muted'>No government stock data.</p>";
+    return;
+  }
+  let html = "<table><tr><th>Item</th><th>Total Govt Stock</th></tr>";
+  Object.keys(totals).forEach(k=>{
+    html += `<tr><td>${k.toUpperCase()}</td><td>${totals[k]}</td></tr>`;
+  });
+  html += "</table>";
+  box.innerHTML = html;
+}
+</script>
 </body>
 </html>
