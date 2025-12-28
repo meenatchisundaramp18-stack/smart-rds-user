@@ -73,7 +73,6 @@ th{background:#667eea;color:white}
 <h2>📜 Last 5 Bills (Your Card)</h2>
 <div id="billsBox" class="muted">No bills to show.</div>
 </div>
-
 </div>
 
 <script>
@@ -102,28 +101,31 @@ async function checkStatus(){
   st.className="status";
 
   try{
-    // Shop stock
+    // ---------- SHOP STOCK ----------
     const totalsSnap = await db.ref(`shops/${shopId}/stockTotals`).once("value");
     renderShopStatus(totalsSnap.val());
 
-    // ✅ FIXED BILL QUERY
+    // ---------- FETCH ALL BILLS ----------
     const billsSnap = await db
       .ref(`shops/${shopId}/users/${cardId}/bills`)
-      .orderByKey()
-      .limitToLast(5)
       .once("value");
 
-    const bills = [];
-    billsSnap.forEach(ch => bills.push(ch.val()));
-    bills.reverse();
+    let bills = [];
+    billsSnap.forEach(ch => {
+      bills.push(ch.val());
+    });
+
+    // ✅ SORT + TAKE LAST 5 (FIX)
+    bills.sort((a,b) => (a.date || '').localeCompare(b.date || ''));
+    bills = bills.slice(-5).reverse();
 
     renderBills(bills);
 
     st.textContent="Data loaded from shop "+shopId;
     st.className="status ok";
   }
-  catch(e){
-    console.error(e);
+  catch(err){
+    console.error(err);
     st.textContent="Error loading data";
     st.className="status err";
   }
@@ -137,7 +139,7 @@ function renderBills(bills){
   }
   let html="<table><tr><th>Date</th><th>Items & Qty</th></tr>";
   bills.forEach(b=>{
-    html+=`<tr><td>${b.date||'-'}</td><td>${b.items||'-'}</td></tr>`;
+    html+=`<tr><td>${b.date}</td><td>${b.items}</td></tr>`;
   });
   html+="</table>";
   box.innerHTML=html;
@@ -160,15 +162,12 @@ function renderShopStatus(totals){
   </tr>`;
 
   ITEMS.forEach(it=>{
-    const total=Number(totals[it]||0);
-    const sold=0;
-    const rem=total;
-
+    const total = Number(totals[it] || 0);
     html+=`<tr>
       <td>${it.toUpperCase()}</td>
       <td>${total} ${UNIT[it]}</td>
-      <td>${sold} ${UNIT[it]}</td>
-      <td>${rem} ${UNIT[it]}</td>
+      <td>0 ${UNIT[it]}</td>
+      <td>${total} ${UNIT[it]}</td>
       <td><span class="pill ok">Refilled / Available</span></td>
     </tr>`;
   });
