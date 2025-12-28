@@ -38,7 +38,6 @@ th{background:#667eea;color:white}
 <h1>SMART-RDS User Portal</h1>
 <p class="sub">Check your ration history and see if government has refilled stock in your shop.</p>
 
-<!-- SEARCH -->
 <div class="section">
 <h2>🔍 Check Ration Status</h2>
 <div class="row">
@@ -65,13 +64,11 @@ th{background:#667eea;color:white}
 <div id="searchStatus" class="status"></div>
 </div>
 
-<!-- SHOP REFILL STATUS (UNCHANGED FORMAT) -->
 <div class="section">
 <h2>✅ Shop Refill Status (Govt → Shop)</h2>
 <div id="shopStatus" class="muted">No data loaded.</div>
 </div>
 
-<!-- BILLS -->
 <div class="section">
 <h2>📜 Last 5 Bills (Your Card)</h2>
 <div id="billsBox" class="muted">No bills to show.</div>
@@ -105,25 +102,21 @@ async function checkStatus(){
   st.className="status";
 
   try{
-    // ---------- SHOP STATUS ----------
-    const [totSnap, stockSnap] = await Promise.all([
-      db.ref(`shops/${shopId}/stockTotals`).once("value"),
-      db.ref(`shops/${shopId}/stock`).once("value")
-    ]);
+    // Shop stock
+    const totalsSnap = await db.ref(`shops/${shopId}/stockTotals`).once("value");
+    renderShopStatus(totalsSnap.val());
 
-    renderShopStatus(totSnap.val(), stockSnap.val());
-
-    // ---------- USER BILLS (FIXED PATH) ----------
+    // ✅ FIXED BILL QUERY
     const billsSnap = await db
       .ref(`shops/${shopId}/users/${cardId}/bills`)
+      .orderByKey()
       .limitToLast(5)
       .once("value");
 
-    const bills=[];
-    if(billsSnap.exists()){
-      billsSnap.forEach(ch=>bills.push(ch.val()));
-      bills.reverse();
-    }
+    const bills = [];
+    billsSnap.forEach(ch => bills.push(ch.val()));
+    bills.reverse();
+
     renderBills(bills);
 
     st.textContent="Data loaded from shop "+shopId;
@@ -150,7 +143,7 @@ function renderBills(bills){
   box.innerHTML=html;
 }
 
-function renderShopStatus(totals, stock){
+function renderShopStatus(totals){
   const box=document.getElementById("shopStatus");
   if(!totals){
     box.innerHTML="<p class='muted'>No stock data</p>";
@@ -168,20 +161,15 @@ function renderShopStatus(totals, stock){
 
   ITEMS.forEach(it=>{
     const total=Number(totals[it]||0);
-    const sold = stock?.[it]?.sold ? Number(stock[it].sold) : 0;
-    const rem  = Math.max(0,total-sold);
-
-    let status = total===0 ? 
-      "<span class='pill no'>No stock</span>" :
-      rem>0 ? "<span class='pill ok'>Refilled / Available</span>" :
-      "<span class='pill no'>Empty</span>";
+    const sold=0;
+    const rem=total;
 
     html+=`<tr>
       <td>${it.toUpperCase()}</td>
       <td>${total} ${UNIT[it]}</td>
       <td>${sold} ${UNIT[it]}</td>
       <td>${rem} ${UNIT[it]}</td>
-      <td>${status}</td>
+      <td><span class="pill ok">Refilled / Available</span></td>
     </tr>`;
   });
 
