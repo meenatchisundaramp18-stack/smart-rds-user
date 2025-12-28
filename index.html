@@ -105,23 +105,32 @@ async function checkStatus(){
     const totalsSnap = await db.ref(`shops/${shopId}/stockTotals`).once("value");
     renderShopStatus(totalsSnap.val());
 
-    // ---------- FETCH ALL BILLS ----------
+    // ---------- USER BILLS ----------
     const billsSnap = await db
       .ref(`shops/${shopId}/users/${cardId}/bills`)
       .once("value");
 
     let bills = [];
     billsSnap.forEach(ch => {
-      bills.push(ch.val());
+      bills.push({
+        key: ch.key,
+        ...ch.val()
+      });
     });
 
-    // ✅ SORT + TAKE LAST 5 (FIX)
-    bills.sort((a,b) => (a.date || '').localeCompare(b.date || ''));
-    bills = bills.slice(-5).reverse();
+    // 🔥 CRITICAL FIX: SORT BY TIMESTAMP (NEWEST FIRST)
+    bills.sort((a,b)=>{
+      const ta = Number(a.date?.substring(1) || 0);
+      const tb = Number(b.date?.substring(1) || 0);
+      return tb - ta;
+    });
+
+    // TAKE LAST 5 (MOST RECENT)
+    bills = bills.slice(0,5);
 
     renderBills(bills);
 
-    st.textContent="Data loaded from shop "+shopId;
+    st.textContent="Latest data loaded from shop "+shopId;
     st.className="status ok";
   }
   catch(err){
@@ -137,9 +146,19 @@ function renderBills(bills){
     box.innerHTML="<p class='muted'>No bills to show.</p>";
     return;
   }
-  let html="<table><tr><th>Date</th><th>Items & Qty</th></tr>";
+
+  let html="<table><tr><th>Date</th><th>Items & Qty</th><th>Status</th></tr>";
   bills.forEach(b=>{
-    html+=`<tr><td>${b.date}</td><td>${b.items}</td></tr>`;
+    let items = ITEMS
+      .filter(it => Number(b[it]) > 0)
+      .map(it => `${it.toUpperCase()} ${b[it]} ${UNIT[it]}`)
+      .join(", ");
+
+    html+=`<tr>
+      <td>${b.date}</td>
+      <td>${items}</td>
+      <td><span class="pill ok">${b.refill_status || "DONE"}</span></td>
+    </tr>`;
   });
   html+="</table>";
   box.innerHTML=html;
@@ -156,9 +175,8 @@ function renderShopStatus(totals){
   <tr>
     <th>Item</th>
     <th>Total Govt Stock</th>
-    <th>Issued (All Cards)</th>
-    <th>Remaining in Shop</th>
-    <th>Refill Status</th>
+    <th>Remaining</th>
+    <th>Status</th>
   </tr>`;
 
   ITEMS.forEach(it=>{
@@ -166,9 +184,8 @@ function renderShopStatus(totals){
     html+=`<tr>
       <td>${it.toUpperCase()}</td>
       <td>${total} ${UNIT[it]}</td>
-      <td>0 ${UNIT[it]}</td>
       <td>${total} ${UNIT[it]}</td>
-      <td><span class="pill ok">Refilled / Available</span></td>
+      <td><span class="pill ok">Available</span></td>
     </tr>`;
   });
 
