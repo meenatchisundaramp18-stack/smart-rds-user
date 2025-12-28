@@ -25,6 +25,9 @@ input,select{padding:10px;border-radius:8px;border:2px solid #ddd;width:100%}
 table{width:100%;border-collapse:collapse;margin-top:10px}
 th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}
 th{background:#667eea;color:white}
+.pill{padding:3px 10px;border-radius:20px;font-size:.75rem}
+.pill.ok{background:#d4edda;color:#155724}
+.pill.no{background:#f8d7da;color:#721c24}
 .muted{color:#777;font-size:.9rem}
 @media(max-width:700px){.row{grid-template-columns:1fr}}
 </style>
@@ -32,47 +35,48 @@ th{background:#667eea;color:white}
 
 <body>
 <div class="container">
-  <h1>SMART-RDS User Portal</h1>
-  <p class="sub">Check your ration history and shop refill status</p>
+<h1>SMART-RDS User Portal</h1>
+<p class="sub">Check your ration history and see if government has refilled stock in your shop.</p>
 
-  <!-- Search -->
-  <div class="section">
-    <h2>🔍 Check Ration Status</h2>
-    <div class="row">
-      <div>
-        <label>Ration Card ID</label>
-        <input id="rationId" placeholder="TN-09-1234567890">
-      </div>
-      <div>
-        <label>Shop ID</label>
-        <select id="shopId">
-          <option>TN001</option>
-        </select>
-      </div>
-      <div>
-        <label>Card Type</label>
-        <select>
-          <option>AAY</option>
-          <option>PHH</option>
-          <option>NPHH</option>
-        </select>
-      </div>
-    </div>
-    <button class="btn" onclick="checkStatus()">📄 Show Shop Refill & Bills</button>
-    <div id="searchStatus" class="status"></div>
-  </div>
+<!-- SEARCH -->
+<div class="section">
+<h2>🔍 Check Ration Status</h2>
+<div class="row">
+<div>
+<label>Ration Card ID</label>
+<input id="rationId" placeholder="TN-09-1234567890">
+</div>
+<div>
+<label>Shop ID</label>
+<select id="shopId">
+<option value="TN001">TN001</option>
+</select>
+</div>
+<div>
+<label>Card Type</label>
+<select>
+<option>AAY</option>
+<option>PHH</option>
+<option>NPHH</option>
+</select>
+</div>
+</div>
+<button class="btn" onclick="checkStatus()">📄 Show Shop Refill & Last 5 Bills</button>
+<div id="searchStatus" class="status"></div>
+</div>
 
-  <!-- Shop Status -->
-  <div class="section">
-    <h2>✅ Shop Refill Status (Govt → Shop)</h2>
-    <div id="shopStatus" class="muted">No data loaded.</div>
-  </div>
+<!-- SHOP REFILL STATUS (UNCHANGED FORMAT) -->
+<div class="section">
+<h2>✅ Shop Refill Status (Govt → Shop)</h2>
+<div id="shopStatus" class="muted">No data loaded.</div>
+</div>
 
-  <!-- Bills -->
-  <div class="section">
-    <h2>📜 Last 5 Bills (Your Card)</h2>
-    <div id="billsBox" class="muted">No bills to show.</div>
-  </div>
+<!-- BILLS -->
+<div class="section">
+<h2>📜 Last 5 Bills (Your Card)</h2>
+<div id="billsBox" class="muted">No bills to show.</div>
+</div>
+
 </div>
 
 <script>
@@ -83,75 +87,106 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
+const ITEMS = ['rice','sugar','wheat','dhal','kerosene'];
+const UNIT  = {rice:'kg',sugar:'kg',wheat:'kg',dhal:'kg',kerosene:'litres'};
+
 async function checkStatus(){
   const cardId = document.getElementById("rationId").value.trim();
   const shopId = document.getElementById("shopId").value;
   const st = document.getElementById("searchStatus");
 
   if(!/^TN-\d{2}-\d{10}$/.test(cardId)){
-    st.textContent = "Invalid Card ID format";
-    st.className = "status err";
+    st.textContent="Invalid Card ID format";
+    st.className="status err";
     return;
   }
 
-  st.textContent = "Loading…";
-  st.className = "status";
+  st.textContent="Loading…";
+  st.className="status";
 
   try{
     // ---------- SHOP STATUS ----------
-    const totalsSnap = await db.ref(`shops/${shopId}/stockTotals`).once("value");
-    renderShopStatus(totalsSnap.val());
+    const [totSnap, stockSnap] = await Promise.all([
+      db.ref(`shops/${shopId}/stockTotals`).once("value"),
+      db.ref(`shops/${shopId}/stock`).once("value")
+    ]);
+
+    renderShopStatus(totSnap.val(), stockSnap.val());
 
     // ---------- USER BILLS (FIXED PATH) ----------
-    const billsSnap = await db.ref(`shops/${shopId}/users/${cardId}/bills`)
-      .limitToLast(5).once("value");
+    const billsSnap = await db
+      .ref(`shops/${shopId}/users/${cardId}/bills`)
+      .limitToLast(5)
+      .once("value");
 
-    const bills = [];
+    const bills=[];
     if(billsSnap.exists()){
-      billsSnap.forEach(ch => bills.push(ch.val()));
+      billsSnap.forEach(ch=>bills.push(ch.val()));
       bills.reverse();
     }
     renderBills(bills);
 
-    st.textContent = "Data loaded from shop " + shopId;
-    st.className = "status ok";
-
-  }catch(e){
+    st.textContent="Data loaded from shop "+shopId;
+    st.className="status ok";
+  }
+  catch(e){
     console.error(e);
-    st.textContent = "Error loading data";
-    st.className = "status err";
+    st.textContent="Error loading data";
+    st.className="status err";
   }
 }
 
 function renderBills(bills){
-  const box = document.getElementById("billsBox");
-  if(!bills || bills.length===0){
-    box.innerHTML = "<p class='muted'>No bills found.</p>";
+  const box=document.getElementById("billsBox");
+  if(!bills.length){
+    box.innerHTML="<p class='muted'>No bills to show.</p>";
     return;
   }
-  let html = "<table><tr><th>Date</th><th>Items</th></tr>";
+  let html="<table><tr><th>Date</th><th>Items & Qty</th></tr>";
   bills.forEach(b=>{
-    html += `<tr>
-      <td>${b.date || '-'}</td>
-      <td>${b.items || '-'}</td>
-    </tr>`;
+    html+=`<tr><td>${b.date||'-'}</td><td>${b.items||'-'}</td></tr>`;
   });
-  html += "</table>";
-  box.innerHTML = html;
+  html+="</table>";
+  box.innerHTML=html;
 }
 
-function renderShopStatus(totals){
-  const box = document.getElementById("shopStatus");
+function renderShopStatus(totals, stock){
+  const box=document.getElementById("shopStatus");
   if(!totals){
-    box.innerHTML = "<p class='muted'>No government stock data.</p>";
+    box.innerHTML="<p class='muted'>No stock data</p>";
     return;
   }
-  let html = "<table><tr><th>Item</th><th>Total Govt Stock</th></tr>";
-  Object.keys(totals).forEach(k=>{
-    html += `<tr><td>${k.toUpperCase()}</td><td>${totals[k]}</td></tr>`;
+
+  let html=`<table>
+  <tr>
+    <th>Item</th>
+    <th>Total Govt Stock</th>
+    <th>Issued (All Cards)</th>
+    <th>Remaining in Shop</th>
+    <th>Refill Status</th>
+  </tr>`;
+
+  ITEMS.forEach(it=>{
+    const total=Number(totals[it]||0);
+    const sold = stock?.[it]?.sold ? Number(stock[it].sold) : 0;
+    const rem  = Math.max(0,total-sold);
+
+    let status = total===0 ? 
+      "<span class='pill no'>No stock</span>" :
+      rem>0 ? "<span class='pill ok'>Refilled / Available</span>" :
+      "<span class='pill no'>Empty</span>";
+
+    html+=`<tr>
+      <td>${it.toUpperCase()}</td>
+      <td>${total} ${UNIT[it]}</td>
+      <td>${sold} ${UNIT[it]}</td>
+      <td>${rem} ${UNIT[it]}</td>
+      <td>${status}</td>
+    </tr>`;
   });
-  html += "</table>";
-  box.innerHTML = html;
+
+  html+="</table>";
+  box.innerHTML=html;
 }
 </script>
 </body>
